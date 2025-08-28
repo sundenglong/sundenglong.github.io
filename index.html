@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello World 页面</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+            transition: transform 0.3s ease;
+        }
+        
+        .container:hover {
+            transform: translateY(-5px);
+        }
+        
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            color: #4a69bd;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        p {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            color: #555;
+        }
+        
+        .hello-world {
+            display: inline-block;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #e74c3c;
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: #f9f9f9;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+            margin: 20px 0;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .code-block {
+            background: #2d3436;
+            color: #f9f9f9;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: left;
+            margin: 25px 0;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>欢迎来到HTML世界</h1>
+        <p>这是一个简单的Hello World页面，展示了HTML和CSS的基础用法。</p>
+        
+        <div class="hello-world">Hello, World!</div>
+        
+        <p>上面的文字是通过以下HTML代码创建的：</p>
+        
+        <div class="code-block">
+            &lt;div class="hello-world"&gt;Hello, World!&lt;/div&gt;
+        </div>
+        
+        <p>HTML是构建网页的基础，CSS用于美化页面外观。</p>
+        
+        <div class="footer">
+            <p>这是一个响应式页面 - 尝试调整浏览器窗口大小</p>
+        </div>
+    </div>
+</body>
+</html>
