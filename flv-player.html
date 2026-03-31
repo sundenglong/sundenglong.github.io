@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>FLV 播放</title>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #msg {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            padding: 16px;
+            color: #fecaca;
+            font: 14px/1.5 system-ui, sans-serif;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: #111;
+        }
+        #msg.show { display: flex; }
+    </style>
+</head>
+<body>
+    <div id="msg"></div>
+    <video id="video" controls playsinline webkit-playsinline></video>
+    <script>
+        (function () {
+            function qs(name) {
+                var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+                return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+            }
+            var streamUrl = qs('url');
+            var msg = document.getElementById('msg');
+            var video = document.getElementById('video');
+
+            function showError(text) {
+                msg.textContent = text;
+                msg.classList.add('show');
+            }
+
+            if (!streamUrl) {
+                showError('缺少 url 参数，例如 ?url=' + encodeURIComponent('https://example.com/live.flv'));
+                return;
+            }
+
+            if (typeof flvjs === 'undefined') {
+                showError('flv.js 未加载');
+                return;
+            }
+
+            if (!flvjs.isSupported()) {
+                showError('当前浏览器不支持 flv.js（MSE）');
+                return;
+            }
+
+            var player = flvjs.createPlayer(
+                {
+                    type: 'flv',
+                    url: streamUrl,
+                    isLive: true,
+                },
+                {
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                }
+            );
+
+            player.attachMediaElement(video);
+            player.load();
+
+            player.on(flvjs.Events.ERROR, function (type, detail) {
+                showError('播放错误: ' + type + (detail != null ? ' ' + JSON.stringify(detail) : ''));
+            });
+
+            video.addEventListener('play', function () {
+                msg.classList.remove('show');
+            });
+
+            var playPromise = video.play();
+            if (playPromise && playPromise.catch) {
+                playPromise.catch(function () {});
+            }
+        })();
+    </script>
+</body>
+</html>
