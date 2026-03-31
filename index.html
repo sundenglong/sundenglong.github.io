@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>FLV 播放</title>
-    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         html, body {
@@ -34,71 +33,152 @@
             justify-content: center;
             text-align: center;
             background: #111;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 100;
         }
         #msg.show { display: flex; }
+        #retry {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-    <div id="msg"></div>
+    <div id="msg">
+        <span id="msg-text"></span>
+        <button id="retry" style="display: none;">重新加载</button>
+    </div>
     <video id="video" controls playsinline webkit-playsinline></video>
+
+    <!-- 按顺序尝试多个 CDN -->
     <script>
-        (function () {
+        (function() {
+            var cdns = [
+                'https://unpkg.com/flv.js@1.6.2/dist/flv.min.js',
+                'https://cdn.staticfile.org/flv.js/1.6.2/flv.min.js',
+                'https://g.alicdn.com/code/lib/flv.js/1.6.2/flv.min.js',
+                'https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js'
+            ];
+            
+            function loadScript(url, index) {
+                var script = document.createElement('script');
+                script.src = url;
+                script.onload = function() {
+                    window.flvjsLoaded = true;
+                    initPlayer();
+                };
+                script.onerror = function() {
+                    if (index + 1 < cdns.length) {
+                        loadScript(cdns[index + 1], index + 1);
+                    } else {
+                        showError('所有 flv.js CDN 均加载失败，请检查网络或使用其他播放方案');
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            window.showError = function(text) {
+                var msg = document.getElementById('msg');
+                var msgText = document.getElementById('msg-text');
+                var retryBtn = document.getElementById('retry');
+                msgText.textContent = text;
+                msg.classList.add('show');
+                retryBtn.style.display = 'block';
+                retryBtn.onclick = function() {
+                    location.reload();
+                };
+            };
+            
+            loadScript(cdns[0], 0);
+        })();
+    </script>
+
+    <script>
+        function initPlayer() {
+            // 等待 flvjs 就绪
+            if (typeof flvjs === 'undefined') {
+                setTimeout(initPlayer, 100);
+                return;
+            }
+            
+            if (!flvjs.isSupported()) {
+                showError('当前浏览器不支持 flv.js（需要 MSE 支持）');
+                return;
+            }
+            
             function qs(name) {
                 var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
                 return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
             }
+            
             var streamUrl = qs('url');
             var msg = document.getElementById('msg');
             var video = document.getElementById('video');
-
-            function showError(text) {
-                msg.textContent = text;
-                msg.classList.add('show');
-            }
-
+            
             if (!streamUrl) {
                 showError('缺少 url 参数，例如 ?url=' + encodeURIComponent('https://example.com/live.flv'));
                 return;
             }
-
-            if (typeof flvjs === 'undefined') {
-                showError('flv.js 未加载');
-                return;
-            }
-
-            if (!flvjs.isSupported()) {
-                showError('当前浏览器不支持 flv.js（MSE）');
-                return;
-            }
-
-            var player = flvjs.createPlayer(
-                {
-                    type: 'flv',
-                    url: streamUrl,
-                    isLive: true,
-                },
-                {
-                    enableWorker: true,
-                    enableStashBuffer: false,
+            
+            var player = null;
+            
+            try {
+                player = flvjs.createPlayer(
+                    {
+                        type: 'flv',
+                        url: streamUrl,
+                        isLive: true,
+                    },
+                    {
+                        enableWorker: false,  // 先关闭 worker 避免跨域问题
+                        enableStashBuffer: false,
+                        lazyLoad: true,
+                        seekType: 'range',
+                    }
+                );
+                
+                player.attachMediaElement(video);
+                player.load();
+                
+                player.on(flvjs.Events.ERROR, function (type, detail) {
+                    var errMsg = '播放错误: ' + type;
+                    if (detail && detail.msg) errMsg += ' - ' + detail.msg;
+                    showError(errMsg);
+                });
+                
+                player.on(flvjs.Events.LOADING_COMPLETE, function () {
+                    console.log('流结束');
+                });
+                
+                player.on(flvjs.Events.METADATA_ARRIVED, function () {
+                    console.log('元数据已加载');
+                    msg.classList.remove('show');
+                });
+                
+                video.addEventListener('play', function () {
+                    if (msg.classList.contains('show')) {
+                        msg.classList.remove('show');
+                    }
+                });
+                
+                var playPromise = video.play();
+                if (playPromise && playPromise.catch) {
+                    playPromise.catch(function (e) {
+                        console.warn('自动播放被阻止:', e);
+                        showError('自动播放失败，请点击视频手动播放');
+                    });
                 }
-            );
-
-            player.attachMediaElement(video);
-            player.load();
-
-            player.on(flvjs.Events.ERROR, function (type, detail) {
-                showError('播放错误: ' + type + (detail != null ? ' ' + JSON.stringify(detail) : ''));
-            });
-
-            video.addEventListener('play', function () {
-                msg.classList.remove('show');
-            });
-
-            var playPromise = video.play();
-            if (playPromise && playPromise.catch) {
-                playPromise.catch(function () {});
+            } catch (err) {
+                console.error('创建播放器失败:', err);
+                showError('播放器初始化失败: ' + err.message);
             }
-        })();
+        }
     </script>
 </body>
 </html>
