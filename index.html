@@ -181,8 +181,9 @@
         <div class="controls">
             <input type="text" id="urlInput" class="url-input" placeholder="输入 FLV 播放地址..." />
             <div class="preset-btns">
-                <button data-url="https://live.kuaishou.com/live/test.flv">📺 快手测试流</button>
-                <button data-url="http://2022.flv-media.nranks.com:8080/live/bbjj.flv">🎬 备用测试流</button>
+                <button data-url="https://cdn.jsdelivr.net/npm/@livekit/examples@1.0.0/public/sample.flv">🎬 示例FLV 1</button>
+                <button data-url="https://test-videos.co.uk/vids/bigbuckbunny/flv/BigBuckBunny_640x360.flv">🐰 BigBuckBunny</button>
+                <button data-url="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4">⚠️ MP4测试</button>
             </div>
             <button id="switchBtn">🔁 切换播放</button>
             <span id="status" class="status">⚫ 未播放</span>
@@ -192,9 +193,9 @@
     <script>
         (function () {
             // ============================================================
-            // 可用的测试地址（已验证）
+            // 更新为当前可用的测试地址
             // ============================================================
-            const DEFAULT_URL = 'https://live.kuaishou.com/live/test.flv';
+            const DEFAULT_URL = 'https://test-videos.co.uk/vids/bigbuckbunny/flv/BigBuckBunny_640x360.flv';
 
             let currentPlayer = null;
             let isPlaying = false;
@@ -216,13 +217,13 @@
                     statusSpan.textContent = '📢 ' + text.substring(0, 40);
                     statusSpan.className = 'status';
                 }
-                // 3秒后自动隐藏非错误消息
+                // 5秒后自动隐藏非错误消息
                 if (!isError) {
                     setTimeout(() => {
                         if (msgDiv.textContent === text) {
                             msgDiv.classList.remove('show');
                         }
-                    }, 3000);
+                    }, 5000);
                 }
             }
 
@@ -291,16 +292,19 @@
                 }
 
                 try {
+                    // 判断是否为直播流（URL 包含 live 或 stream 关键字）
+                    let isLive = url.toLowerCase().includes('live') || url.toLowerCase().includes('stream');
+                    
                     // 创建新播放器
                     currentPlayer = flvjs.createPlayer(
                         {
                             type: 'flv',
                             url: url.trim(),
-                            isLive: true,  // 设为直播模式，更适合测试流
+                            isLive: isLive,
                         },
                         {
                             enableWorker: true,
-                            enableStashBuffer: false,  // 低延迟
+                            enableStashBuffer: !isLive,  // 直播流关闭缓冲，点播流开启缓冲
                             stashInitialSize: 128,
                         }
                     );
@@ -321,6 +325,11 @@
                         updateStatus('播放失败', 'error');
                         console.error('flv error:', type, detail);
                         isPlaying = false;
+                    });
+
+                    // 元数据加载完成
+                    currentPlayer.on(flvjs.Events.METADATA_ARRIVED, function () {
+                        console.log('元数据已加载');
                     });
 
                     // 开始播放后
@@ -350,10 +359,21 @@
                                 video.play().then(() => {
                                     hideMessage();
                                     updateStatus('▶ 播放中', 'playing');
-                                }).catch(() => {});
+                                }).catch((err) => {
+                                    console.error('手动播放失败:', err);
+                                });
                                 video.removeEventListener('click', onClickPlay);
                             };
                             video.addEventListener('click', onClickPlay, { once: true });
+                        }).then(() => {
+                            // 播放成功后延迟几秒取消静音（部分浏览器策略）
+                            setTimeout(() => {
+                                if (!video.muted && !video.paused) {
+                                    // 已经正常播放
+                                } else if (video.muted && !video.paused) {
+                                    video.muted = false;
+                                }
+                            }, 2000);
                         });
                     }
 
