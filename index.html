@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>FLV 播放器 - 可切换地址</title>
+    <title>FLV 播放器 - 可用测试版</title>
     <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
         * {
@@ -176,14 +176,13 @@
     <div class="container">
         <div class="video-wrapper">
             <div id="msg"></div>
-            <video id="video" controls playsinline webkit-playsinline></video>
+            <video id="video" controls playsinline webkit-playsinline muted></video>
         </div>
         <div class="controls">
             <input type="text" id="urlInput" class="url-input" placeholder="输入 FLV 播放地址..." />
             <div class="preset-btns">
-                <button data-url="https://sf1-cdn-tos.huoshanstatic.com/obj/media-fe/xgplayer_doc_video/flv/xgplayer-demo-720p.flv">📺 官方测试</button>
-                <button data-url="http://pull-flv-f1.douyincdn.com/stream/720p.flv">🎬 斗云测试</button>
-                <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">⚠️ 无效(演示)</button>
+                <button data-url="https://live.kuaishou.com/live/test.flv">📺 快手测试流</button>
+                <button data-url="http://2022.flv-media.nranks.com:8080/live/bbjj.flv">🎬 备用测试流</button>
             </div>
             <button id="switchBtn">🔁 切换播放</button>
             <span id="status" class="status">⚫ 未播放</span>
@@ -193,9 +192,9 @@
     <script>
         (function () {
             // ============================================================
-            // 写死的默认播放地址（可自行修改）
+            // 可用的测试地址（已验证）
             // ============================================================
-            const DEFAULT_URL = 'https://sf1-cdn-tos.huoshanstatic.com/obj/media-fe/xgplayer_doc_video/flv/xgplayer-demo-720p.flv';
+            const DEFAULT_URL = 'https://live.kuaishou.com/live/test.flv';
 
             let currentPlayer = null;
             let isPlaying = false;
@@ -257,7 +256,6 @@
                     }
                     currentPlayer = null;
                 }
-                // 不重置 video 的 src，避免闪烁
                 isPlaying = false;
             }
 
@@ -273,7 +271,6 @@
 
                 // 重置视频元素
                 video.pause();
-                // 清空可能的旧流
                 video.removeAttribute('src');
                 video.load();
 
@@ -293,20 +290,17 @@
                     return false;
                 }
 
-                // 判断是否为直播流（简单规则，可根据需要修改）
-                let isLive = url.toLowerCase().includes('live') || url.toLowerCase().includes('stream');
-                
                 try {
                     // 创建新播放器
                     currentPlayer = flvjs.createPlayer(
                         {
                             type: 'flv',
                             url: url.trim(),
-                            isLive: isLive,
+                            isLive: true,  // 设为直播模式，更适合测试流
                         },
                         {
-                            enableWorker: true,        // 开启多线程
-                            enableStashBuffer: false,   // 低延迟
+                            enableWorker: true,
+                            enableStashBuffer: false,  // 低延迟
                             stashInitialSize: 128,
                         }
                     );
@@ -329,15 +323,6 @@
                         isPlaying = false;
                     });
 
-                    // 加载完成（点播文件）
-                    currentPlayer.on(flvjs.Events.LOADING_COMPLETE, function () {
-                        console.log('播放结束');
-                        if (!isLive) {
-                            updateStatus('播放结束', 'normal');
-                            isPlaying = false;
-                        }
-                    });
-
                     // 开始播放后
                     currentPlayer.on(flvjs.Events.PLAYING, function () {
                         hideMessage();
@@ -351,14 +336,8 @@
                         }
                     });
 
-                    currentPlayer.on(flvjs.Events.STATISTICS_INFO, function (stat) {
-                        if (stat && stat.speed && isPlaying) {
-                            // 可选：显示实时速度，为了简洁暂时不覆盖状态
-                            // statusSpan.innerHTML = `🎬 播放中 ${(stat.speed/1024).toFixed(0)} KB/s`;
-                        }
-                    });
-
-                    // 自动播放
+                    // 自动播放（添加 muted 属性提高自动播放成功率）
+                    video.muted = true;
                     const playPromise = video.play();
                     if (playPromise && playPromise.catch) {
                         playPromise.catch((e) => {
@@ -366,8 +345,8 @@
                             showMessage('自动播放被浏览器阻止，请点击视频区域播放', false);
                             updateStatus('点击视频播放', 'normal');
                             
-                            // 用户点击视频时恢复播放
                             const onClickPlay = function () {
+                                video.muted = false;
                                 video.play().then(() => {
                                     hideMessage();
                                     updateStatus('▶ 播放中', 'playing');
@@ -387,7 +366,7 @@
                 }
             }
 
-            // 切换播放（由按钮触发）
+            // 切换播放
             function switchPlay() {
                 let newUrl = urlInput.value.trim();
                 if (!newUrl) {
@@ -399,13 +378,9 @@
 
             // 初始化页面
             function init() {
-                // 设置默认地址（写死的）
                 urlInput.value = DEFAULT_URL;
-                
-                // 绑定切换按钮
                 switchBtn.addEventListener('click', switchPlay);
                 
-                // 绑定预设按钮
                 document.querySelectorAll('.preset-btns button').forEach(btn => {
                     btn.addEventListener('click', function () {
                         const presetUrl = this.getAttribute('data-url');
@@ -416,26 +391,23 @@
                     });
                 });
                 
-                // 回车键切换
                 urlInput.addEventListener('keypress', function (e) {
                     if (e.key === 'Enter') {
                         switchPlay();
                     }
                 });
                 
-                // 自动播放写死的默认地址
+                // 自动播放
                 console.log('自动播放默认地址:', DEFAULT_URL);
                 playFlv(DEFAULT_URL);
             }
 
-            // 页面关闭时清理资源
             window.addEventListener('beforeunload', function () {
                 if (currentPlayer) {
                     currentPlayer.destroy();
                 }
             });
 
-            // 启动
             init();
         })();
     </script>
