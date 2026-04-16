@@ -3,23 +3,43 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>FLV 播放器</title>
+    <title>FLV 播放器 - 可切换地址</title>
     <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
-        * { box-sizing: border-box; }
-        html, body {
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             background: #000;
             overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
         }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-wrapper {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+
         #video {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
+
         #msg {
             display: none;
             position: absolute;
@@ -33,178 +53,390 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0, 0, 0, 0.9);
             z-index: 10;
         }
-        #msg.show { display: flex; }
-        .info {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            color: rgba(255,255,255,0.6);
-            font: 12px system-ui;
-            background: rgba(0,0,0,0.5);
-            padding: 4px 8px;
-            border-radius: 4px;
-            pointer-events: none;
-            z-index: 10;
+
+        #msg.show {
+            display: flex;
+        }
+
+        .controls {
+            background: #1a1a2e;
+            padding: 12px 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            border-top: 1px solid #333;
+        }
+
+        .url-input {
+            flex: 3;
+            min-width: 200px;
+            padding: 10px 12px;
+            background: #0f0f1a;
+            border: 1px solid #333;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: monospace;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #0078ff;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #0078ff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #005fcc;
+            transform: scale(1.02);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .preset-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            flex: 2;
+        }
+
+        .preset-btns button {
+            background: #2c2c3e;
+            font-size: 12px;
+            padding: 8px 12px;
+        }
+
+        .preset-btns button:hover {
+            background: #3c3c52;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #888;
+            margin-left: auto;
+            padding: 0 8px;
+        }
+
+        .status.loading {
+            color: #ffaa00;
+        }
+
+        .status.playing {
+            color: #00ff88;
+        }
+
+        .status.error {
+            color: #ff4444;
+        }
+
+        @media (max-width: 700px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .preset-btns {
+                order: 2;
+            }
+
+            button {
+                order: 3;
+            }
+
+            .status {
+                order: 1;
+                text-align: center;
+                margin-left: 0;
+                margin-bottom: 5px;
+            }
+
+            .url-input {
+                order: 1;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="msg"></div>
-    <video id="video" controls playsinline webkit-playsinline></video>
-    <div class="info" id="info"></div>
+    <div class="container">
+        <div class="video-wrapper">
+            <div id="msg"></div>
+            <video id="video" controls playsinline webkit-playsinline></video>
+        </div>
+        <div class="controls">
+            <input type="text" id="urlInput" class="url-input" placeholder="输入 FLV 播放地址..." />
+            <div class="preset-btns">
+                <button data-url="https://sf1-cdn-tos.huoshanstatic.com/obj/media-fe/xgplayer_doc_video/flv/xgplayer-demo-720p.flv">📺 官方测试</button>
+                <button data-url="http://pull-flv-f1.douyincdn.com/stream/720p.flv">🎬 斗云测试</button>
+                <button data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">⚠️ 无效(演示)</button>
+            </div>
+            <button id="switchBtn">🔁 切换播放</button>
+            <span id="status" class="status">⚫ 未播放</span>
+        </div>
+    </div>
 
     <script>
         (function () {
-            // 从 URL 参数获取流地址
-            function getQueryParam(name) {
-                var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
-                return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
-            }
-
             // ============================================================
-            // 测试地址（取消注释其中一个即可直接测试，无需 URL 参数）
+            // 写死的默认播放地址（可自行修改）
             // ============================================================
-            
-            // 测试地址 1：官方示例流（推荐，画质好，稳定）
-            // var TEST_URL = 'https://sf1-cdn-tos.huoshanstatic.com/obj/media-fe/xgplayer_doc_video/flv/xgplayer-demo-720p.flv';
-            
-            // 测试地址 2：社区通用测试流（低延迟）
-            // var TEST_URL = 'http://pull-flv-f1.douyincdn.com/stream/720p.flv';
-            
-            // 测试地址 3：另一个稳定测试源
-            // var TEST_URL = 'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-576p.mp4'; // 注意这个是 mp4，flv.js 不支持，仅作示例
-            // ============================================================
+            const DEFAULT_URL = 'https://sf1-cdn-tos.huoshanstatic.com/obj/media-fe/xgplayer_doc_video/flv/xgplayer-demo-720p.flv';
 
-            var msg = document.getElementById('msg');
-            var video = document.getElementById('video');
-            var infoDiv = document.getElementById('info');
+            let currentPlayer = null;
+            let isPlaying = false;
 
-            function showError(text) {
-                msg.textContent = text;
-                msg.classList.add('show');
-                infoDiv.textContent = '错误: ' + text.substring(0, 60);
-            }
+            const video = document.getElementById('video');
+            const msgDiv = document.getElementById('msg');
+            const urlInput = document.getElementById('urlInput');
+            const switchBtn = document.getElementById('switchBtn');
+            const statusSpan = document.getElementById('status');
 
-            // 获取流地址：优先使用 URL 参数，其次使用测试地址
-            var streamUrl = getQueryParam('url');
-            
-            // 如果没有 URL 参数，且上面定义了 TEST_URL，则使用测试地址
-            if (!streamUrl) {
-                // 如果你想去掉测试地址，只允许 URL 参数，就把下面的注释取消，并注释掉 TEST_URL 的定义
-                // showError('缺少 url 参数，例如 ?url=' + encodeURIComponent('https://example.com/live.flv'));
-                // return;
-                
-                // 临时：如果有定义 TEST_URL 则使用，否则报错
-                if (typeof TEST_URL !== 'undefined') {
-                    streamUrl = TEST_URL;
-                    infoDiv.textContent = '使用测试地址: ' + streamUrl.substring(0, 50) + '...';
+            // 显示错误/信息
+            function showMessage(text, isError = true) {
+                msgDiv.textContent = text;
+                msgDiv.classList.add('show');
+                if (isError) {
+                    statusSpan.textContent = '❌ ' + text.substring(0, 40);
+                    statusSpan.className = 'status error';
                 } else {
-                    showError('缺少 url 参数，例如 ?url=' + encodeURIComponent('https://example.com/live.flv'));
+                    statusSpan.textContent = '📢 ' + text.substring(0, 40);
+                    statusSpan.className = 'status';
+                }
+                // 3秒后自动隐藏非错误消息
+                if (!isError) {
+                    setTimeout(() => {
+                        if (msgDiv.textContent === text) {
+                            msgDiv.classList.remove('show');
+                        }
+                    }, 3000);
+                }
+            }
+
+            function hideMessage() {
+                msgDiv.classList.remove('show');
+            }
+
+            function updateStatus(text, type = 'normal') {
+                statusSpan.textContent = text;
+                if (type === 'loading') {
+                    statusSpan.className = 'status loading';
+                } else if (type === 'playing') {
+                    statusSpan.className = 'status playing';
+                } else if (type === 'error') {
+                    statusSpan.className = 'status error';
+                } else {
+                    statusSpan.className = 'status';
+                }
+            }
+
+            // 销毁当前播放器
+            function destroyPlayer() {
+                if (currentPlayer) {
+                    try {
+                        currentPlayer.pause();
+                        currentPlayer.unload();
+                        currentPlayer.detachMediaElement();
+                        currentPlayer.destroy();
+                    } catch (e) {
+                        console.warn('销毁播放器出错:', e);
+                    }
+                    currentPlayer = null;
+                }
+                // 不重置 video 的 src，避免闪烁
+                isPlaying = false;
+            }
+
+            // 核心播放函数
+            function playFlv(url) {
+                if (!url || url.trim() === '') {
+                    showMessage('请输入播放地址', true);
+                    return false;
+                }
+
+                // 清理旧播放器
+                destroyPlayer();
+
+                // 重置视频元素
+                video.pause();
+                // 清空可能的旧流
+                video.removeAttribute('src');
+                video.load();
+
+                hideMessage();
+                updateStatus('加载中...', 'loading');
+
+                // 检查 flv.js
+                if (typeof flvjs === 'undefined') {
+                    showMessage('flv.js 未加载，请检查网络', true);
+                    updateStatus('flv.js 未加载', 'error');
+                    return false;
+                }
+
+                if (!flvjs.isSupported()) {
+                    showMessage('当前浏览器不支持 flv.js（需要 MSE 支持）', true);
+                    updateStatus('浏览器不支持', 'error');
+                    return false;
+                }
+
+                // 判断是否为直播流（简单规则，可根据需要修改）
+                let isLive = url.toLowerCase().includes('live') || url.toLowerCase().includes('stream');
+                
+                try {
+                    // 创建新播放器
+                    currentPlayer = flvjs.createPlayer(
+                        {
+                            type: 'flv',
+                            url: url.trim(),
+                            isLive: isLive,
+                        },
+                        {
+                            enableWorker: true,        // 开启多线程
+                            enableStashBuffer: false,   // 低延迟
+                            stashInitialSize: 128,
+                        }
+                    );
+
+                    currentPlayer.attachMediaElement(video);
+                    currentPlayer.load();
+
+                    // 错误事件
+                    currentPlayer.on(flvjs.Events.ERROR, function (type, detail) {
+                        let errMsg = '播放错误';
+                        if (detail && detail.code) {
+                            if (detail.code === 1) errMsg = '网络错误，请检查地址或网络';
+                            else if (detail.code === 2) errMsg = '格式错误，不是有效的 FLV';
+                            else errMsg = `错误码: ${detail.code}`;
+                        }
+                        if (detail && detail.msg) errMsg += ` - ${detail.msg}`;
+                        showMessage(errMsg, true);
+                        updateStatus('播放失败', 'error');
+                        console.error('flv error:', type, detail);
+                        isPlaying = false;
+                    });
+
+                    // 加载完成（点播文件）
+                    currentPlayer.on(flvjs.Events.LOADING_COMPLETE, function () {
+                        console.log('播放结束');
+                        if (!isLive) {
+                            updateStatus('播放结束', 'normal');
+                            isPlaying = false;
+                        }
+                    });
+
+                    // 开始播放后
+                    currentPlayer.on(flvjs.Events.PLAYING, function () {
+                        hideMessage();
+                        updateStatus('▶ 播放中', 'playing');
+                        isPlaying = true;
+                    });
+
+                    currentPlayer.on(flvjs.Events.PAUSE, function () {
+                        if (isPlaying) {
+                            updateStatus('⏸ 已暂停', 'normal');
+                        }
+                    });
+
+                    currentPlayer.on(flvjs.Events.STATISTICS_INFO, function (stat) {
+                        if (stat && stat.speed && isPlaying) {
+                            // 可选：显示实时速度，为了简洁暂时不覆盖状态
+                            // statusSpan.innerHTML = `🎬 播放中 ${(stat.speed/1024).toFixed(0)} KB/s`;
+                        }
+                    });
+
+                    // 自动播放
+                    const playPromise = video.play();
+                    if (playPromise && playPromise.catch) {
+                        playPromise.catch((e) => {
+                            console.warn('自动播放失败:', e);
+                            showMessage('自动播放被浏览器阻止，请点击视频区域播放', false);
+                            updateStatus('点击视频播放', 'normal');
+                            
+                            // 用户点击视频时恢复播放
+                            const onClickPlay = function () {
+                                video.play().then(() => {
+                                    hideMessage();
+                                    updateStatus('▶ 播放中', 'playing');
+                                }).catch(() => {});
+                                video.removeEventListener('click', onClickPlay);
+                            };
+                            video.addEventListener('click', onClickPlay, { once: true });
+                        });
+                    }
+
+                    return true;
+                } catch (e) {
+                    console.error('创建播放器异常:', e);
+                    showMessage('播放器初始化失败: ' + e.message, true);
+                    updateStatus('初始化失败', 'error');
+                    return false;
+                }
+            }
+
+            // 切换播放（由按钮触发）
+            function switchPlay() {
+                let newUrl = urlInput.value.trim();
+                if (!newUrl) {
+                    showMessage('请先输入或选择播放地址', true);
                     return;
                 }
-            } else {
-                infoDiv.textContent = '播放地址: ' + streamUrl.substring(0, 60) + (streamUrl.length > 60 ? '...' : '');
+                playFlv(newUrl);
             }
 
-            // 检查 flv.js
-            if (typeof flvjs === 'undefined') {
-                showError('flv.js 未加载，请检查网络连接');
-                return;
-            }
-
-            if (!flvjs.isSupported()) {
-                showError('当前浏览器不支持 flv.js（需要 MSE 支持）');
-                return;
-            }
-
-            // 判断是否为直播流（根据 URL 或参数可调整，这里简单判断或默认为点播）
-            // 大多数测试流是点播文件，设置为 false 更流畅；如果是真正的直播流可改为 true
-            var isLiveStream = false;
-            // 如果 URL 包含 'live' 字样可自动判断，但测试地址不含，所以默认为 false
-            if (streamUrl.toLowerCase().indexOf('live') !== -1) {
-                isLiveStream = true;
-            }
-
-            var player = flvjs.createPlayer(
-                {
-                    type: 'flv',
-                    url: streamUrl,
-                    isLive: isLiveStream,
-                },
-                {
-                    enableWorker: true,        // 开启多线程
-                    enableStashBuffer: false,   // 关闭缓冲暂存，降低延迟（直播推荐）
-                    stashInitialSize: 128,      // 初始缓冲大小
-                }
-            );
-
-            player.attachMediaElement(video);
-            player.load();
-
-            // 错误处理
-            player.on(flvjs.Events.ERROR, function (type, detail) {
-                var errMsg = '播放错误: ' + type;
-                if (detail) {
-                    if (detail.code) errMsg += ' code=' + detail.code;
-                    if (detail.msg) errMsg += ' msg=' + detail.msg;
-                    try {
-                        errMsg += ' ' + JSON.stringify(detail).substring(0, 200);
-                    } catch(e) {}
-                }
-                showError(errMsg);
-                console.error('flv.js error:', type, detail);
-            });
-
-            // 加载完成
-            player.on(flvjs.Events.LOADING_COMPLETE, function () {
-                console.log('加载完成（点播文件播放结束）');
-                if (!isLiveStream) {
-                    infoDiv.textContent = '播放结束';
-                }
-            });
-
-            // 播放统计信息
-            player.on(flvjs.Events.STATISTICS_INFO, function (stat) {
-                if (stat && stat.speed) {
-                    // 可选：显示实时网速，不强制显示以免干扰
-                    // infoDiv.textContent = '速度: ' + (stat.speed / 1024).toFixed(0) + ' KB/s';
-                }
-            });
-
-            // 视频开始播放后隐藏错误遮罩
-            video.addEventListener('play', function () {
-                msg.classList.remove('show');
-            });
-
-            // 尝试自动播放（浏览器策略可能会阻止，需要用户交互）
-            var playPromise = video.play();
-            if (playPromise && playPromise.catch) {
-                playPromise.catch(function (e) {
-                    console.warn('自动播放被阻止，需要用户点击:', e);
-                    showError('自动播放被浏览器阻止，请点击视频区域播放');
-                    // 显示提示但不清除遮罩，等用户点击播放后消失
-                    msg.textContent = '点击视频开始播放';
-                    msg.classList.add('show');
-                    
-                    // 用户点击视频时尝试播放
-                    video.addEventListener('click', function onClickPlay() {
-                        video.play().then(function() {
-                            msg.classList.remove('show');
-                        }).catch(function() {});
-                        video.removeEventListener('click', onClickPlay);
-                    }, { once: true });
+            // 初始化页面
+            function init() {
+                // 设置默认地址（写死的）
+                urlInput.value = DEFAULT_URL;
+                
+                // 绑定切换按钮
+                switchBtn.addEventListener('click', switchPlay);
+                
+                // 绑定预设按钮
+                document.querySelectorAll('.preset-btns button').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const presetUrl = this.getAttribute('data-url');
+                        if (presetUrl) {
+                            urlInput.value = presetUrl;
+                            playFlv(presetUrl);
+                        }
+                    });
                 });
+                
+                // 回车键切换
+                urlInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        switchPlay();
+                    }
+                });
+                
+                // 自动播放写死的默认地址
+                console.log('自动播放默认地址:', DEFAULT_URL);
+                playFlv(DEFAULT_URL);
             }
 
-            // 页面关闭时销毁播放器，释放资源
+            // 页面关闭时清理资源
             window.addEventListener('beforeunload', function () {
-                if (player) {
-                    player.destroy();
+                if (currentPlayer) {
+                    currentPlayer.destroy();
                 }
             });
+
+            // 启动
+            init();
         })();
     </script>
 </body>
